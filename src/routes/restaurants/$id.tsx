@@ -6,6 +6,7 @@ import {
   addReview,
 } from '../../server/restaurants.functions'
 import { useIdentity } from '../../lib/identity-context'
+import { KakaoMap } from '../../components/KakaoMap'
 import { Heart, Star, ArrowLeft, MapPin, Phone, Globe, MessageSquare } from 'lucide-react'
 
 export const Route = createFileRoute('/restaurants/$id')({
@@ -186,25 +187,25 @@ function RestaurantDetailPage() {
           </div>
         </div>
 
-        {/* Map preview */}
-        <a
-          href={`https://www.google.com/maps?q=${restaurant.lat},${restaurant.lng}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block bg-white rounded-2xl shadow-sm overflow-hidden mb-6 hover:shadow-md transition-shadow"
-        >
-          <img
-            src={`https://staticmap.openstreetmap.de/staticmap.php?center=${restaurant.lat},${restaurant.lng}&zoom=16&size=600x200&markers=${restaurant.lat},${restaurant.lng},red`}
-            alt="지도"
-            className="w-full h-40 object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none'
-            }}
-          />
-          <div className="p-3 text-center text-sm text-orange-500 font-medium">
-            📍 Google Maps에서 보기
+        {/* Kakao Map */}
+        {restaurant.lat && restaurant.lng && (
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden mb-6">
+            <KakaoMap
+              lat={restaurant.lat}
+              lng={restaurant.lng}
+              height="220px"
+              restaurants={[{ id: restaurant.id, name: restaurant.name, lat: restaurant.lat, lng: restaurant.lng }]}
+            />
+            <a
+              href={restaurant.website || `https://map.kakao.com/?q=${encodeURIComponent(restaurant.name)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block p-3 text-center text-sm text-orange-500 font-medium hover:bg-orange-50 transition-colors"
+            >
+              📍 카카오 지도에서 보기
+            </a>
           </div>
-        </a>
+        )}
 
         {/* Review Form */}
         <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">

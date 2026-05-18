@@ -1,15 +1,16 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState, useCallback } from 'react'
-import { MapPin, Search, RefreshCw, LogOut, User, ChevronRight, Star } from 'lucide-react'
+import { MapPin, Search, RefreshCw, LogOut, User, ChevronRight } from 'lucide-react'
 import { RouletteWheel } from '../components/RouletteWheel'
-import { upsertRestaurant } from '../server/restaurants.functions'
+import { KakaoMap } from '../components/KakaoMap'
+import { upsertRestaurant, searchKakaoRestaurants, geocodeKakaoAddress } from '../server/restaurants.functions'
 import { useIdentity } from '../lib/identity-context'
 
 export const Route = createFileRoute('/')({
   component: Home,
 })
 
-interface OsmRestaurant {
+interface KakaoRestaurant {
   id: string
   name: string
   lat: number
@@ -20,47 +21,23 @@ interface OsmRestaurant {
   website?: string
 }
 
-async function fetchNearbyRestaurants(lat: number, lng: number, radius = 1500): Promise<OsmRestaurant[]> {
-  const query = `
-    [out:json][timeout:10];
-    node["amenity"~"restaurant|cafe|fast_food|bar"](around:${radius},${lat},${lng});
-    out body 50;
-  `
-  const res = await fetch('https://overpass-api.de/api/interpreter', {
-    method: 'POST',
-    body: query,
-  })
-  if (!res.ok) throw new Error('Overpass API 오류')
-  const json = await res.json()
-
-  return json.elements
-    .filter((el: any) => el.tags?.name)
-    .map((el: any) => ({
-      id: `osm-${el.id}`,
-      name: el.tags.name,
-      lat: el.lat,
-      lng: el.lon,
-      address: [el.tags['addr:street'], el.tags['addr:housenumber'], el.tags['addr:city']]
-        .filter(Boolean).join(' ') || undefined,
-      cuisine: el.tags.cuisine?.replace(/_/g, ' ') || undefined,
-      phone: el.tags.phone || el.tags['contact:phone'] || undefined,
-      website: el.tags.website || el.tags['contact:website'] || undefined,
-    }))
-}
-
 function getCuisineEmoji(cuisine?: string): string {
   if (!cuisine) return '🍽️'
-  const c = cuisine.toLowerCase()
-  if (c.includes('korean') || c.includes('korean_')) return '🥘'
-  if (c.includes('japanese') || c.includes('sushi') || c.includes('ramen')) return '🍱'
-  if (c.includes('chinese')) return '🥡'
-  if (c.includes('italian') || c.includes('pizza') || c.includes('pasta')) return '🍕'
-  if (c.includes('burger') || c.includes('american')) return '🍔'
-  if (c.includes('chicken')) return '🍗'
-  if (c.includes('cafe') || c.includes('coffee')) return '☕'
-  if (c.includes('bar')) return '🍺'
-  if (c.includes('thai')) return '🍜'
-  if (c.includes('indian')) return '🍛'
+  const c = cuisine
+  if (c.includes('한식') || c.includes('국밥') || c.includes('설렁탕')) return '🥘'
+  if (c.includes('삼겹살') || c.includes('구이') || c.includes('갈비')) return '🥩'
+  if (c.includes('족발') || c.includes('보쌈')) return '🍖'
+  if (c.includes('일식') || c.includes('스시') || c.includes('초밥') || c.includes('라멘')) return '🍱'
+  if (c.includes('중식') || c.includes('중국집')) return '🥡'
+  if (c.includes('이탈리안') || c.includes('피자') || c.includes('파스타')) return '🍕'
+  if (c.includes('패스트푸드') || c.includes('햄버거')) return '🍔'
+  if (c.includes('치킨')) return '🍗'
+  if (c.includes('카페') || c.includes('커피') || c.includes('디저트')) return '☕'
+  if (c.includes('술집') || c.includes('호프') || c.includes('이자카야')) return '🍺'
+  if (c.includes('분식') || c.includes('떡볶이')) return '🍢'
+  if (c.includes('해물') || c.includes('해산물') || c.includes('회')) return '🦞'
+  if (c.includes('태국') || c.includes('베트남') || c.includes('쌀국수')) return '🍜'
+  if (c.includes('인도') || c.includes('카레')) return '🍛'
   return '🍽️'
 }
 
@@ -68,15 +45,15 @@ function Home() {
   const { user, ready, logout } = useIdentity()
   const navigate = useNavigate()
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
-  const [restaurants, setRestaurants] = useState<OsmRestaurant[]>([])
+  const [restaurants, setRestaurants] = useState<KakaoRestaurant[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [selectedRestaurant, setSelectedRestaurant] = useState<OsmRestaurant | null>(null)
+  const [selectedRestaurant, setSelectedRestaurant] = useState<KakaoRestaurant | null>(null)
   const [radius, setRadius] = useState(1500)
   const [showRoulette, setShowRoulette] = useState(false)
-  const [searchMode, setSearchMode] = useState<'location' | 'manual'>('location')
-  const [manualLat, setManualLat] = useState('')
-  const [manualLng, setManualLng] = useState('')
+  const [searchMode, setSearchMode] = useState<'location' | 'address'>('location')
+  const [addressQuery, setAddressQuery] = useState('')
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
 
   const search = useCallback(async (lat: number, lng: number) => {
     setLoading(true)
@@ -84,7 +61,7 @@ function Home() {
     setSelectedRestaurant(null)
     setShowRoulette(false)
     try {
-      const results = await fetchNearbyRestaurants(lat, lng, radius)
+      const results = await searchKakaoRestaurants({ data: { lat, lng, radius } })
       if (results.length === 0) {
         setError('근처에 등록된 식당이 없습니다. 반경을 늘려보세요.')
       }
@@ -111,30 +88,37 @@ function Home() {
       () => {
         setLoading(false)
         setError('위치 정보를 가져올 수 없습니다. 브라우저 위치 권한을 확인해주세요.')
-      }
+      },
     )
   }
 
-  const handleManualSearch = () => {
-    const lat = parseFloat(manualLat)
-    const lng = parseFloat(manualLng)
-    if (isNaN(lat) || isNaN(lng)) {
-      setError('올바른 위도/경도를 입력해주세요')
-      return
+  const handleAddressSearch = async () => {
+    if (!addressQuery.trim()) return
+    setLoading(true)
+    setError('')
+    try {
+      const result = await geocodeKakaoAddress({ data: { query: addressQuery } })
+      if (!result) {
+        setError('위치를 찾을 수 없습니다. 다른 검색어를 시도해보세요.')
+        setLoading(false)
+        return
+      }
+      setLocation({ lat: result.lat, lng: result.lng })
+      await search(result.lat, result.lng)
+    } catch {
+      setError('위치 검색에 실패했습니다.')
+      setLoading(false)
     }
-    setLocation({ lat, lng })
-    search(lat, lng)
   }
 
-  const handleRouletteResult = async (restaurant: OsmRestaurant) => {
+  const handleRouletteResult = async (restaurant: KakaoRestaurant) => {
     setSelectedRestaurant(restaurant)
-    // Save restaurant to DB for future reviews/likes
     try {
       await upsertRestaurant({ data: restaurant })
     } catch {}
   }
 
-  const handleRestaurantClick = async (restaurant: OsmRestaurant) => {
+  const handleRestaurantClick = async (restaurant: KakaoRestaurant) => {
     try {
       await upsertRestaurant({ data: restaurant })
     } catch {}
@@ -196,10 +180,10 @@ function Home() {
               📍 현재 위치 사용
             </button>
             <button
-              onClick={() => setSearchMode('manual')}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${searchMode === 'manual' ? 'bg-white shadow text-orange-600' : 'text-gray-500'}`}
+              onClick={() => setSearchMode('address')}
+              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${searchMode === 'address' ? 'bg-white shadow text-orange-600' : 'text-gray-500'}`}
             >
-              ✏️ 직접 입력
+              🔍 주소/지역 검색
             </button>
           </div>
 
@@ -239,54 +223,57 @@ function Home() {
             </button>
           ) : (
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="flex gap-2">
                 <input
-                  type="number"
-                  step="any"
-                  placeholder="위도 (예: 37.5665)"
-                  value={manualLat}
-                  onChange={(e) => setManualLat(e.target.value)}
-                  className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-400 focus:outline-none text-sm"
+                  type="text"
+                  placeholder="지역이나 주소 입력 (예: 서울 강남구, 홍대입구역)"
+                  value={addressQuery}
+                  onChange={(e) => setAddressQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddressSearch()}
+                  className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-400 focus:outline-none text-sm"
                 />
-                <input
-                  type="number"
-                  step="any"
-                  placeholder="경도 (예: 126.9780)"
-                  value={manualLng}
-                  onChange={(e) => setManualLng(e.target.value)}
-                  className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-400 focus:outline-none text-sm"
-                />
-              </div>
-              <p className="text-xs text-gray-400">예시: 서울 시청 - 위도 37.5665, 경도 126.9780</p>
-              <button
-                onClick={handleManualSearch}
-                disabled={loading}
-                className="w-full py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:shadow-lg transition-all disabled:opacity-50"
-              >
-                {loading ? (
-                  <>
+                <button
+                  onClick={handleAddressSearch}
+                  disabled={loading || !addressQuery.trim()}
+                  className="px-5 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold rounded-xl flex items-center gap-2 hover:shadow-lg transition-all disabled:opacity-50"
+                >
+                  {loading ? (
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    검색 중...
-                  </>
-                ) : (
-                  <>
-                    <Search size={18} /> 검색
-                  </>
-                )}
-              </button>
+                  ) : (
+                    <Search size={18} />
+                  )}
+                </button>
+              </div>
+              <p className="text-xs text-gray-400">예시: 강남역, 서울 마포구 연남동, 부산 해운대</p>
             </div>
           )}
 
           {error && (
             <p className="mt-3 text-red-500 text-sm text-center">{error}</p>
           )}
-
-          {location && (
-            <p className="mt-2 text-xs text-gray-400 text-center">
-              📍 {location.lat.toFixed(4)}, {location.lng.toFixed(4)}
-            </p>
-          )}
         </div>
+
+        {/* Kakao Map */}
+        {location && (
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <KakaoMap
+              lat={location.lat}
+              lng={location.lng}
+              restaurants={restaurants}
+              height="320px"
+              selectedId={hoveredId}
+              onMarkerClick={(id) => {
+                const r = restaurants.find(res => res.id === id)
+                if (r) handleRestaurantClick(r)
+              }}
+            />
+            {restaurants.length > 0 && (
+              <p className="text-xs text-gray-400 text-center py-2">
+                마커를 클릭하면 상세 페이지로 이동합니다
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Results */}
         {restaurants.length > 0 && (
@@ -309,10 +296,13 @@ function Home() {
                 <div className="flex flex-col items-center gap-6">
                   <RouletteWheel
                     restaurants={restaurants}
-                    onResult={handleRouletteResult}
+                    onResult={(r) => {
+                      const full = restaurants.find(res => res.id === r.id)
+                      if (full) handleRouletteResult(full)
+                    }}
                   />
                   {selectedRestaurant && (
-                    <div className="w-full bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-200 rounded-2xl p-5 text-center animate-[fadeIn_0.5s_ease]">
+                    <div className="w-full bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-200 rounded-2xl p-5 text-center">
                       <p className="text-sm text-orange-600 font-medium mb-1">🎉 오늘의 맛집!</p>
                       <h3 className="text-xl font-black mb-1">{selectedRestaurant.name}</h3>
                       {selectedRestaurant.cuisine && (
@@ -363,7 +353,9 @@ function Home() {
                   <button
                     key={r.id}
                     onClick={() => handleRestaurantClick(r)}
-                    className="w-full text-left px-4 py-4 hover:bg-orange-50 transition-colors flex items-center gap-3 group"
+                    onMouseEnter={() => setHoveredId(r.id)}
+                    onMouseLeave={() => setHoveredId(null)}
+                    className={`w-full text-left px-4 py-4 transition-colors flex items-center gap-3 group ${hoveredId === r.id ? 'bg-orange-50' : 'hover:bg-orange-50'}`}
                   >
                     <span className="text-2xl flex-shrink-0">{getCuisineEmoji(r.cuisine)}</span>
                     <div className="flex-1 min-w-0">
