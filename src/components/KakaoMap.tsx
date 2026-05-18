@@ -41,7 +41,7 @@ function loadKakaoSdk(cb: () => void) {
   }
 
   const script = document.createElement('script')
-  script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${appkey}&autoload=false`
+  script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${appkey}&autoload=false&libraries=services`
   script.async = true
   script.onload = () => {
     window.kakao.maps.load(() => {

@@ -1,0 +1,8 @@
+<!DOCTYPE html>
+<script>
+  var l = window.location;
+  l.replace(
+    l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+    '/?redirect=' + encodeURIComponent(l.pathname.slice(1) + l.search + l.hash)
+  );
+</script>

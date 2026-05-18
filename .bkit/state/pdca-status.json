@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-05-18T11:20:48.310Z",
+  "lastUpdated": "2026-05-18T12:03:53.513Z",
   "activeFeatures": [
     "todo-app",
     "api",
@@ -353,7 +353,7 @@
       "documents": {},
       "timestamps": {
         "started": "2026-05-18T11:17:39.847Z",
-        "lastUpdated": "2026-05-18T11:17:39.847Z"
+        "lastUpdated": "2026-05-18T12:03:11.326Z"
       },
       "lastFile": "C:\\Users\\n3299\\git\\sonbbang\\src\\components\\KakaoMap.tsx"
     },
@@ -366,7 +366,7 @@
       "documents": {},
       "timestamps": {
         "started": "2026-05-18T11:18:43.414Z",
-        "lastUpdated": "2026-05-18T11:20:39.166Z"
+        "lastUpdated": "2026-05-18T12:03:53.513Z"
       },
       "lastFile": "C:\\Users\\n3299\\git\\sonbbang\\src\\routes\\index.tsx"
     },
@@ -392,7 +392,7 @@
   "session": {
     "startedAt": "2026-03-20T10:18:23.279Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-05-18T11:20:48.310Z"
+    "lastActivity": "2026-05-18T12:03:53.513Z"
   },
   "history": [
     {
@@ -2060,6 +2060,42 @@
     {
       "timestamp": "2026-05-18T11:20:48.309Z",
       "feature": "server",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-18T12:02:37.516Z",
+      "feature": "sonbbang",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-18T12:02:45.751Z",
+      "feature": "sonbbang",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-18T12:02:52.256Z",
+      "feature": "routes",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-18T12:03:00.121Z",
+      "feature": "sonbbang",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-18T12:03:11.326Z",
+      "feature": "sonbbang",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-05-18T12:03:53.513Z",
+      "feature": "routes",
       "phase": "do",
       "action": "updated"
     }
